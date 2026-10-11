@@ -95,7 +95,10 @@
       soldMonth: monthYear(l.soldDate),
       images: (l.images || []).slice(0, 40),
     };
-    if (settings.showAddress) out.streetAddress = l.streetAddress;
+    if (settings.showAddress) {
+      out.streetAddress = l.streetAddress;
+      if (l.lat != null && l.lng != null) { out.lat = l.lat; out.lng = l.lng; }
+    }
     if (settings.showListPrice) out.listPrice = l.listPrice;
     return out;
   }
@@ -129,6 +132,13 @@
       }
       this.changed();
       return p;
+    }
+    rename(id, name) {
+      const p = this.players.get(id);
+      name = String(name || '').trim().slice(0, 20);
+      if (!p || !name) return;
+      p.name = name;
+      this.changed();
     }
     setConnected(id, on) {
       const p = this.players.get(id);
@@ -302,6 +312,8 @@
         net.conns.set(playerId, conn);
         const p = app.game.addPlayer(playerId, msg.name);
         toast(`${p.name} anslöt`);
+      } else if (msg.t === 'rename' && playerId) {
+        app.game.rename(playerId, msg.name);
       } else if (msg.t === 'guess' && playerId) {
         app.game.guess(playerId, msg.value);
       } else if (msg.t === 'leave' && playerId) {
@@ -393,6 +405,13 @@
     allListings: [],
     customListings: null,
   };
+
+  function renameMe(name) {
+    app.me.name = name;
+    store.set('name', name);
+    if (app.role === 'host') app.game.rename(app.me.id, name);
+    else if (net.hostConn && net.hostConn.open) net.hostConn.send({ t: 'rename', name });
+  }
 
   function sendGuess(value) {
     if (app.role === 'host') app.game.guess(app.me.id, value);
@@ -601,6 +620,13 @@
           <div class="card stack">
             <h3>Spelare (<span id="player-count">${s.players.length}</span>)</h3>
             <div class="players" id="lobby-players">${playersHtml}</div>
+            <form class="rename" id="rename-form" autocomplete="off">
+              <label class="label" for="rename-input">Ditt namn</label>
+              <div class="row" style="flex-wrap:nowrap">
+                <input class="input" id="rename-input" maxlength="20" required value="${esc(s.players.find((p) => p.id === s.you)?.name || app.me.name)}">
+                <button class="btn" type="submit">Byt namn</button>
+              </div>
+            </form>
           </div>
         </div>
         <div class="stack">
@@ -640,6 +666,14 @@
     };
     if ($('#share-link')) $('#share-link').onclick = () => navigator.share({ title: 'Gissa bostadspriset', text: `Gå med i mitt rum: ${s.code}`, url: joinUrl(s.code) }).catch(() => {});
     $('#leave-btn').onclick = () => { if (!isHost || confirm('Avsluta rummet för alla?')) leave(); };
+    $('#rename-form').onsubmit = (e) => {
+      e.preventDefault();
+      const name = $('#rename-input').value.trim().slice(0, 20);
+      if (!name) return;
+      renameMe(name);
+      $('#rename-input').blur();
+      toast(`Du heter nu ${name}`);
+    };
 
     if (isHost) {
       const g = app.game;
@@ -702,6 +736,27 @@
       </div>
       <div class="facts">${facts.map(([k, v]) => `<div class="fact"><div class="k">${esc(k)}</div><div class="v num">${esc(v)}</div></div>`).join('')}</div>
       ${l.amenities && l.amenities.length ? `<div class="chips">${l.amenities.map((a) => `<span class="chip">${esc(a)}</span>`).join('')}</div>` : ''}`;
+  }
+
+  // Google Maps-inbäddning utan API-nyckel. Under rundan visas bara området (om inte gatuadress är påslaget).
+  function mapHtml(l, { exact = false } = {}) {
+    const place = [l.areaName, l.municipality].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+    const hasPos = l.lat != null && l.lng != null;
+    let q, z;
+    if (hasPos && (exact || l.streetAddress)) { q = `${l.lat},${l.lng}`; z = 15; }
+    else if (place) { q = `${place}, Sverige`; z = 12; }
+    else return '';
+    const src = `https://maps.google.com/maps?q=${encodeURIComponent(q)}&z=${z}&hl=sv&output=embed`;
+    const link = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+    return `
+      <div class="card map-card">
+        <div class="map-head">
+          <h3>${exact || l.streetAddress ? 'Här ligger bostaden' : 'Ungefär här'}</h3>
+          <a class="small" href="${esc(link)}" target="_blank" rel="noopener">Öppna i Google Maps ↗</a>
+        </div>
+        <iframe class="map" title="Karta över ${esc(place || 'bostaden')}" src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+        ${exact || l.streetAddress ? '' : '<p class="muted small" style="margin:8px 0 0">Exakt läge visas i facit.</p>'}
+      </div>`;
   }
 
   function galleryHtml(images) {
@@ -787,6 +842,7 @@
         <div class="stack">
           ${galleryHtml(images)}
           <div class="card">${factsHtml(l)}</div>
+          ${mapHtml(l)}
         </div>
         <aside class="card guess-panel" id="guess-panel"></aside>
       </div>`;
@@ -938,6 +994,7 @@
           ${galleryHtml(l.images)}
           <div class="card">${factsHtml({ ...l, soldMonth: monthYear(l.soldDate) }, { reveal: true })}
             <p class="small" style="margin:14px 0 0"><a href="${esc(l.url)}" target="_blank" rel="noopener">Se bostaden på Booli ↗</a></p></div>
+          ${mapHtml(l, { exact: true })}
         </div>
         <aside class="stack guess-panel">
           <div class="card stack">
