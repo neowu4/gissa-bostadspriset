@@ -87,6 +87,12 @@
     };
     const str = (key) => { const m = h.match(new RegExp(`"${key}":"([^"]*)"`)); return m ? m[1] : null; };
     const year = h.match(/"constructionYear":(\d{4})/);
+    // Hela bildlistan för bostaden (sökresultatet innehåller bara de fem första).
+    let images = [];
+    const ii = h.indexOf('"images":[', h.indexOf('"soldPrice":{'));
+    if (ii > 0) {
+      try { images = JSON.parse(sliceJson(h, ii + 9)).map((x) => x.id); } catch { /* ignorera */ }
+    }
     return {
       soldPrice: rawOf('soldPrice'),
       listPrice: rawOf('listPrice'),
@@ -103,6 +109,7 @@
       streetAddress: str('streetAddress'),
       areaName: str('descriptiveAreaName'),
       removed: str('removed'),
+      allImages: images,
     };
   }
 
@@ -128,6 +135,15 @@
       lat: it.position?.latitude ?? null,
       lng: it.position?.longitude ?? null,
     };
+  }
+
+  // Detaljsidan (/bostad/…) visar fastighetens alla bilder, även från tidigare eller senare annonser.
+  // Bild-id ökar med tiden, så vi behåller bara bilder som laddades upp i samma veva som sökresultatets.
+  function filterImages(all, list) {
+    const nums = list.map(Number).filter(Number.isFinite);
+    if (!nums.length) return list;
+    const lo = Math.min(...nums) - 2000, hi = Math.max(...nums) + 50000;
+    return [...new Set([...list, ...all.filter((id) => Number(id) >= lo && Number(id) <= hi)])].slice(0, 60);
   }
 
   // ---------- Körning ----------
@@ -160,10 +176,12 @@
             const d = parseDetail(await (await fetch(l.url, { credentials: 'include' })).text());
             // Detaljsidan visar även liknande bostäder – lita bara på den om slutpriset stämmer med listan.
             if (!l.soldPrice || !d.soldPrice || d.soldPrice === l.soldPrice) {
-              for (const [k, v] of Object.entries(d)) {
+              const { allImages, ...rest } = d;
+              for (const [k, v] of Object.entries(rest)) {
                 if (v == null) continue;
                 if (l[k] == null) l[k] = v;
               }
+              if (allImages.length) l.images = filterImages(allImages, l.images);
             }
           } catch { /* behåll det vi har från listan */ }
           if (!l.soldPrice || l.images.length < minImg) continue;

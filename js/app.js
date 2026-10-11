@@ -93,7 +93,7 @@
       tenureForm: l.tenureForm,
       amenities: l.amenities || [],
       soldMonth: monthYear(l.soldDate),
-      images: (l.images || []).slice(0, 40),
+      images: (l.images || []).slice(0, 60),
     };
     if (settings.showAddress) {
       out.streetAddress = l.streetAddress;
@@ -159,7 +159,8 @@
       const s = this.settings;
       return this.listings.filter((l) =>
         (s.type === 'alla' || typeOf(l) === s.type) &&
-        (s.county === 'alla' || countyOf(l) === s.county));
+        (s.county === 'alla' || countyOf(l) === s.county) &&
+        (!s.manyImages || (l.images || []).length >= 10));
     }
 
     start() {
@@ -434,7 +435,7 @@
     const listings = app.customListings || await loadListings();
     app.allListings = listings;
     const settings = Object.assign(
-      { rounds: 8, seconds: 45, type: 'alla', county: 'alla', showListPrice: false, showAddress: false },
+      { rounds: 8, seconds: 45, type: 'alla', county: 'alla', showListPrice: false, showAddress: false, manyImages: false },
       store.get('settings', {}),
     );
     const begin = (code) => {
@@ -645,6 +646,7 @@
             </div>
             <label class="toggle"><input type="checkbox" id="set-listprice" ${st.showListPrice ? 'checked' : ''}> Visa utgångspris (lättare)</label>
             <label class="toggle"><input type="checkbox" id="set-address" ${st.showAddress ? 'checked' : ''}> Visa gatuadress</label>
+            <label class="toggle"><input type="checkbox" id="set-images" ${st.manyImages ? 'checked' : ''}> Bara bostäder med minst 10 bilder</label>
             <p class="muted small" style="margin:0"><span id="pool-size">${fmt(s.poolSize)}</span> bostäder matchar ·
               <label style="color:var(--accent);cursor:pointer;text-decoration:underline">ladda egen fil<input type="file" id="custom-file" accept=".json,application/json" hidden></label></p>
             <button class="btn primary big block" id="start-btn" ${s.poolSize ? '' : 'disabled'}>Starta spelet</button>
@@ -684,6 +686,7 @@
       $('#set-county').onchange = (e) => { g.settings.county = e.target.value; save(); refreshStart(); };
       $('#set-listprice').onchange = (e) => { g.settings.showListPrice = e.target.checked; save(); };
       $('#set-address').onchange = (e) => { g.settings.showAddress = e.target.checked; save(); };
+      $('#set-images').onchange = (e) => { g.settings.manyImages = e.target.checked; save(); refreshStart(); };
       $('#start-btn').onclick = () => g.start();
       $('#custom-file').onchange = async (e) => {
         const f = e.target.files[0];
