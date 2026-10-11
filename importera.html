@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Importera bostäder</title>
+  <meta name="description" content="Hämta fler sålda bostäder från Booli till Gissa bostadspriset.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=5">
+  <style>
+    .steps { counter-reset: s; display: grid; gap: 14px; padding: 0; margin: 0; list-style: none; }
+    .steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+    .steps li::before { content: counter(s); width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; }
+    .bookmarklet { display: inline-block; padding: 10px 16px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font-weight: 700; text-decoration: none; cursor: grab; }
+    code { background: var(--surface-2); padding: 2px 6px; border-radius: 6px; font-size: .92em; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="./">🏠 <span>Gissa bostadspriset</span></a></header>
+  <main class="app stack" style="max-width:760px">
+    <div>
+      <h1 style="font-size:clamp(28px,6vw,40px)">Lägg till fler bostäder</h1>
+      <p class="muted">Booli blockerar automatiska skript, så importen körs i din egen webbläsare medan du är inne på Booli. Den läser slutprisresultatet du har framför dig och sparar bostäderna som en fil.</p>
+    </div>
+
+    <div class="card stack">
+      <h2>Med bokmärke (enklast)</h2>
+      <ol class="steps">
+        <li><div>Dra knappen till bokmärkesfältet:<br><br><a class="bookmarklet" id="bm" href="#">🏠 Importera till Gissa bostadspriset</a></div></li>
+        <li><div>Gå till <a href="https://www.booli.se/sok/slutpriser" target="_blank" rel="noopener">booli.se/sok/slutpriser</a> och sök på ett område. Filtrera gärna på bostadstyp.</div></li>
+        <li><div>Klicka på bokmärket. En ruta dyker upp i hörnet. Välj hur många sidor som ska läsas och tryck på <b>Starta</b>. Byt gärna sökning och kör igen, bostäderna samlas ihop.</div></li>
+        <li><div>Tryck på <b>Ladda ner</b>. Filen kan du antingen ladda in direkt i lobbyn (<i>ladda egen fil</i>) eller lägga in i spelet för alla (se nedan).</div></li>
+      </ol>
+    </div>
+
+    <div class="card stack">
+      <h2>Utan bokmärke (t.ex. Safari)</h2>
+      <p style="margin:0">Öppna Booli, öppna utvecklarkonsolen och klistra in koden:</p>
+      <div class="row"><button class="btn" id="copy-code">Kopiera koden</button><span class="muted small" id="copy-status"></span></div>
+    </div>
+
+    <div class="card stack">
+      <h2>Lägg in i spelet för alla</h2>
+      <p style="margin:0">Slå ihop den nedladdade filen med spelets bostadslista och pusha till GitHub:</p>
+      <code>node scripts/merge.mjs ~/Downloads/bostader-*.json</code>
+      <p class="muted small" style="margin:0">Skriptet tar bort dubbletter och sparar till <code>data/listings.json</code>. Kör sedan <code>git commit</code> och <code>git push</code>, så uppdateras GitHub Pages.</p>
+    </div>
+    <p class="footer-note">All data och alla bilder tillhör Booli och mäklarna. Använd importen måttligt.</p>
+  </main>
+  <script>
+    const src = new URL('importer/booli-import.js', location.href).toString();
+    const bm = `javascript:(()=>{const s=document.createElement('script');s.src='${src}?'+Date.now();document.body.appendChild(s)})()`;
+    document.getElementById('bm').setAttribute('href', bm);
+    document.getElementById('bm').addEventListener('click', (e) => { e.preventDefault(); alert('Dra knappen till bokmärkesfältet i stället för att klicka på den.'); });
+    document.getElementById('copy-code').onclick = async () => {
+      const st = document.getElementById('copy-status');
+      try {
+        const code = await (await fetch(src)).text();
+        await navigator.clipboard.writeText(code);
+        st.textContent = 'Koden kopierades.';
+      } catch { st.textContent = 'Kunde inte kopiera. Öppna ' + src + ' och kopiera manuellt.'; }
+    };
+  </script>
+</body>
+</html>
